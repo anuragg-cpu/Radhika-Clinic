@@ -8,11 +8,14 @@ over the network -- backups are plain file copies made by the user.
 
 from __future__ import annotations
 
+import re
 import shutil
 import sqlite3
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+
+REG_NO_PATTERN = re.compile(r"^RC-(\d+)$")
 
 
 def default_data_dir() -> Path:
@@ -106,9 +109,19 @@ class Database:
 
     # ---------------------------------------------------------- patients --
     def next_reg_no(self) -> str:
-        row = self.conn.execute("SELECT MAX(id) AS m FROM patients").fetchone()
-        next_id = (row["m"] or 0) + 1
-        return f"RC-{next_id:05d}"
+        """Next Reg No, sequential from the highest Reg No currently in use.
+
+        Scans existing Reg No values (rather than relying on the internal
+        autoincrement id) so the sequence stays correct even if a patient
+        was deleted or a Reg No was manually edited to a non-standard value.
+        """
+        rows = self.conn.execute("SELECT reg_no FROM patients").fetchall()
+        highest = 0
+        for row in rows:
+            match = REG_NO_PATTERN.match(row["reg_no"] or "")
+            if match:
+                highest = max(highest, int(match.group(1)))
+        return f"RC-{highest + 1:05d}"
 
     def add_patient(self, reg_no, name, age, sex, contact, address,
                      chief_complaint, medical_history) -> int:
@@ -153,6 +166,19 @@ class Database:
                 (reg_no, exclude_id),
             ).fetchone()
         return row is not None
+
+    def find_patients_by_name(self, name: str, exclude_id=None) -> list[sqlite3.Row]:
+        """Existing patients with this exact name (case-insensitive)."""
+        if exclude_id is None:
+            return self.conn.execute(
+                "SELECT * FROM patients WHERE name = ? COLLATE NOCASE ORDER BY created_at",
+                (name,),
+            ).fetchall()
+        return self.conn.execute(
+            "SELECT * FROM patients WHERE name = ? COLLATE NOCASE AND id != ? "
+            "ORDER BY created_at",
+            (name, exclude_id),
+        ).fetchall()
 
     def search_patients(self, term: str) -> list[sqlite3.Row]:
         term = f"%{term.strip()}%"

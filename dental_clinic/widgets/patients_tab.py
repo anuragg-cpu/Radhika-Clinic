@@ -135,6 +135,32 @@ class PatientsTab(QWidget):
             QMessageBox.warning(self, "Missing information",
                                  "Reg No and Name are required.")
             return
+        # If this is a brand-new patient but the name matches someone
+        # already on file, ask whether to update that existing record
+        # instead of creating a duplicate entry.
+        if self.current_patient_id is None:
+            matches = self.db.find_patients_by_name(name)
+            if matches:
+                existing = matches[0]
+                choice = QMessageBox.question(
+                    self, "Existing Patient Found",
+                    f"A patient named '{name}' already exists "
+                    f"(Reg No: {existing['reg_no']}).\n\n"
+                    "Do you want to update that existing record instead of "
+                    "creating a new one? Choose No to register a separate, "
+                    "different patient with the same name.",
+                    QMessageBox.StandardButton.Yes
+                    | QMessageBox.StandardButton.No
+                    | QMessageBox.StandardButton.Cancel,
+                    QMessageBox.StandardButton.Yes,
+                )
+                if choice == QMessageBox.StandardButton.Cancel:
+                    return
+                if choice == QMessageBox.StandardButton.Yes:
+                    self.current_patient_id = existing["id"]
+                    reg_no = existing["reg_no"]
+                    self.reg_no_edit.setText(reg_no)
+
         if self.db.reg_no_exists(reg_no, exclude_id=self.current_patient_id):
             QMessageBox.warning(self, "Duplicate Reg No",
                                  f"Reg No '{reg_no}' is already in use.")
@@ -147,7 +173,8 @@ class PatientsTab(QWidget):
         complaint = self.complaint_edit.toPlainText().strip()
         history = self.history_edit.toPlainText().strip()
 
-        if self.current_patient_id is None:
+        is_new = self.current_patient_id is None
+        if is_new:
             new_id = self.db.add_patient(reg_no, name, age, sex, contact,
                                           address, complaint, history)
             self.current_patient_id = new_id
@@ -157,7 +184,12 @@ class PatientsTab(QWidget):
 
         self.refresh_list()
         self.load_patient(self.current_patient_id)
-        QMessageBox.information(self, "Saved", f"Patient '{name}' saved.")
+        if is_new:
+            QMessageBox.information(self, "Saved", f"Patient '{name}' saved.")
+        else:
+            QMessageBox.information(
+                self, "Updated",
+                f"Existing record for '{name}' (Reg No: {reg_no}) updated.")
 
     def delete_patient(self):
         if self.current_patient_id is None:
