@@ -55,10 +55,13 @@ class PatientsTab(QWidget):
         self.contact_edit = QLineEdit()
         self.address_edit = QTextEdit()
         self.address_edit.setFixedHeight(60)
+        self.address_edit.setTabChangesFocus(True)
         self.complaint_edit = QTextEdit()
         self.complaint_edit.setFixedHeight(60)
+        self.complaint_edit.setTabChangesFocus(True)
         self.history_edit = QTextEdit()
         self.history_edit.setFixedHeight(60)
+        self.history_edit.setTabChangesFocus(True)
 
         form.addRow("Reg No / Unique ID:", self.reg_no_edit)
         form.addRow("Name:", self.name_edit)
