@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from PyQt6.QtCore import Qt, QDate, QSize
-from PyQt6.QtGui import QPixmap, QDesktopServices
+from PyQt6.QtGui import QIcon, QPixmap, QDesktopServices
 from PyQt6.QtCore import QUrl
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QListWidget, QListWidgetItem,
@@ -103,9 +103,9 @@ class XrayTab(QWidget):
             if abs_path.exists():
                 pix = QPixmap(str(abs_path))
                 if not pix.isNull():
-                    item.setIcon(pix.scaled(
+                    item.setIcon(QIcon(pix.scaled(
                         96, 96, Qt.AspectRatioMode.KeepAspectRatio,
-                        Qt.TransformationMode.SmoothTransformation))
+                        Qt.TransformationMode.SmoothTransformation)))
             self.list_widget.addItem(item)
         self.preview_label.setText("No X-ray selected")
         self.preview_label.setPixmap(QPixmap())
@@ -141,12 +141,18 @@ class XrayTab(QWidget):
             "Images (*.png *.jpg *.jpeg *.bmp *.tif *.tiff)")
         if not file_path:
             return
-        self.db.add_xray(
-            self.patient_id,
-            Path(file_path),
-            self.note_edit.text().strip(),
-            self.date_edit.date().toString("yyyy-MM-dd"),
-        )
+        try:
+            self.db.add_xray(
+                self.patient_id,
+                Path(file_path),
+                self.note_edit.text().strip(),
+                self.date_edit.date().toString("yyyy-MM-dd"),
+            )
+        except Exception as exc:
+            QMessageBox.critical(
+                self, "Could Not Attach X-Ray",
+                f"The X-ray image could not be saved:\n\n{exc}")
+            return
         self.note_edit.clear()
         self.refresh()
 
@@ -158,7 +164,12 @@ class XrayTab(QWidget):
             self, "Remove X-Ray", "Delete this X-ray image?")
         if confirm != QMessageBox.StandardButton.Yes:
             return
-        self.db.delete_xray(row["id"])
+        try:
+            self.db.delete_xray(row["id"])
+        except Exception as exc:
+            QMessageBox.critical(
+                self, "Could Not Remove X-Ray", str(exc))
+            return
         self.refresh()
 
     def open_selected(self):

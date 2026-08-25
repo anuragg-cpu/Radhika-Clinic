@@ -17,6 +17,20 @@ from pathlib import Path
 
 REG_NO_PATTERN = re.compile(r"^RC-(\d+)$")
 
+INVALID_PATH_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
+
+
+def _safe_folder_name(name: str) -> str:
+    """Make an arbitrary string safe to use as a Windows/Mac/Linux folder name.
+
+    Reg No is free text the user can edit, so it may contain characters
+    that are illegal in a filesystem path (e.g. '/' or ':'). Without this,
+    creating the X-ray folder for such a patient raises an OSError that
+    would otherwise crash the whole application.
+    """
+    cleaned = INVALID_PATH_CHARS.sub("_", name).strip(" .")
+    return cleaned or "unknown"
+
 
 def default_data_dir() -> Path:
     """Where clinic data lives on this machine.
@@ -251,7 +265,7 @@ class Database:
     def add_xray(self, patient_id, source_file: Path, note: str, taken_on: str) -> Path:
         source_file = Path(source_file)
         patient = self.get_patient(patient_id)
-        patient_dir = self.xray_dir / patient["reg_no"]
+        patient_dir = self.xray_dir / _safe_folder_name(patient["reg_no"])
         patient_dir.mkdir(parents=True, exist_ok=True)
         stamp = datetime.now().strftime("%Y%m%d%H%M%S")
         dest_name = f"{stamp}_{source_file.name}"
